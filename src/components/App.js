@@ -1,39 +1,74 @@
 import React, { useState, useEffect, useContext } from "react";
+import {
+  HashRouter as Router,
+  useHistory,
+  useRouteMatch
+} from "react-router-dom";
+import { noop } from "lodash";
 import styled from "@emotion/styled";
+import { useSpring } from "react-spring";
+import { useDrag } from "react-use-gesture";
 
-const AppContext = React.createContext({});
-const useAppContext = () => useContext(AppContext);
+export const AppContext = React.createContext({});
+export const useAppContext = () => useContext(AppContext);
 
 function App() {
   return (
     <AppProvider>
-      <HeaderBar />
+      <FrameProvider>
+        <HeaderBar />
+      </FrameProvider>
     </AppProvider>
   );
 }
 
 function AppProvider({ children }) {
-  const [isBig, setIsBig] = useState(false);
+  const [{ x, mx }, setDragX] = useSpring(() => ({ x: 0, mx: 0 }));
 
   const contextValue = {
-    isBig,
-    setIsBig
+    dragX: x,
+    dragMX: mx,
+    setDragX
   };
 
   return (
-    <AppContext.Provider value={contextValue}>
-      <FrameContainerView>
-        <FrameActionsView>
-          <button onClick={() => setIsBig(!isBig)}>Toggle</button>
-        </FrameActionsView>
-        <FrameView>{children}</FrameView>
-      </FrameContainerView>
-    </AppContext.Provider>
+    <Router>
+      <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>
+    </Router>
+  );
+}
+
+function FrameProvider({ children }) {
+  const { setDragX } = useAppContext();
+  const MAX = 360;
+  const bindGestures = useDrag(
+    ({ down, event, movement, cancel }) => {
+      const [mx] = movement;
+      if (mx > 0) {
+        setDragX({
+          x: down ? mx : 0,
+          mx: down ? ((MAX + mx) / MAX - 1) * 100 : 0,
+          immediate: down
+        });
+      }
+    },
+    {
+      bounds: {
+        right: MAX
+      }
+    }
+  );
+
+  return (
+    <FrameContainerView>
+      <FrameView {...bindGestures()}>{children}</FrameView>
+    </FrameContainerView>
   );
 }
 
 function HeaderBar() {
-  const { isBig } = useAppContext();
+  const navigateTo = useNavigateTo();
+  const isBig = !!useRouteMatch("/details");
 
   const heights = [50, 128];
 
@@ -49,10 +84,10 @@ function HeaderBar() {
 
   return (
     <HeaderView style={style}>
-      <HeaderTitle isBig={isBig} />
-      <Avatar isBig={isBig} />
+      <HeaderTitle isBig={isBig} onClick={navigateTo.details} />
+      <Avatar isBig={isBig} onClick={navigateTo.details} />
       <HeaderActionLeftView>
-        <ButtonView>Back</ButtonView>
+        <ButtonView onClick={navigateTo.home}>Back</ButtonView>
       </HeaderActionLeftView>
       <HeaderActionRightView style={actionRightStyle}>
         <ButtonView>Edit</ButtonView>
@@ -61,9 +96,8 @@ function HeaderBar() {
   );
 }
 
-function Avatar({ isBig = false }) {
+function Avatar({ isBig = false, onClick = noop }) {
   const smallOffsetRight = 4;
-
   const sizes = [40, 64];
   const right = [sizes[0] / 2 + smallOffsetRight * 2, "50%"];
   const top = [4, 8];
@@ -79,7 +113,7 @@ function Avatar({ isBig = false }) {
 
   return (
     <AvatarWrapperView style={style}>
-      <AvatarView />
+      <AvatarView onClick={onClick} />
     </AvatarWrapperView>
   );
 }
@@ -87,7 +121,8 @@ function Avatar({ isBig = false }) {
 function HeaderTitle({
   isBig = false,
   title = "User name",
-  subtitle = "nickname"
+  subtitle = "nickname",
+  onClick = noop
 }) {
   const top = [8, 80];
   const titleScale = [1, 1.2];
@@ -104,10 +139,21 @@ function HeaderTitle({
 
   return (
     <HeaderTitleWrapperView style={style}>
-      <HeaderTitleView style={titleStyle}>{title}</HeaderTitleView>
+      <HeaderTitleView style={titleStyle} onClick={onClick}>
+        {title}
+      </HeaderTitleView>
       <HeaderSubtitleView>{subtitle}</HeaderSubtitleView>
     </HeaderTitleWrapperView>
   );
+}
+
+function useNavigateTo() {
+  const history = useHistory();
+
+  return {
+    home: () => history.push("/"),
+    details: () => history.push("/details")
+  };
 }
 
 export function usePosition({ ref }) {
@@ -134,13 +180,6 @@ const FrameContainerView = styled.div`
   width: 100%;
   padding: 16px;
   flex-direction: column;
-`;
-
-const FrameActionsView = styled.div`
-  position: absolute;
-  top: 0;
-  left: 0;
-  padding: 8px;
 `;
 
 const FrameView = styled.div`
@@ -213,6 +252,11 @@ const ButtonView = styled.button`
   border: none;
   font-size: 14px;
   outline: none;
+  cursor: pointer;
 `;
+
+// function normalize(val, max, min) {
+//   return (val - min) / (max - min);
+// }
 
 export default App;
