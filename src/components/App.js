@@ -75,7 +75,7 @@ function AppProvider({ children }) {
 function FrameProvider({ children }) {
   const { toggleDarkMode } = useAppContext();
   const navigateTo = useNavigateTo();
-  const bindGestures = useScreenSwipeGestures({ onNavigate: navigateTo.home });
+  const bindGestures = useScreenDragGestures({ onNavigate: navigateTo.home });
 
   return (
     <FrameContainerView>
@@ -231,7 +231,7 @@ function DetailsScreen() {
   );
 }
 
-function useScreenSwipeGestures({ onNavigate = noop }) {
+function useScreenDragGestures({ onNavigate = noop }) {
   const { setMX, frameWidth } = useAppContext();
   const canDrag = useCanDrag();
 
@@ -239,14 +239,15 @@ function useScreenSwipeGestures({ onNavigate = noop }) {
     ({ down, movement, velocity, active }) => {
       const [mx] = movement;
 
-      const isStoppedDragging = !active;
-      const isDraggingRight = mx < 0;
-      const isHardSwipe = velocity > 2;
-      const navigateThreshold = frameWidth * 0.3;
-      const didTriggerNavigate = mx > navigateThreshold;
+      const isDraggingLeft = mx < 0;
 
       if (!canDrag) return;
-      if (isDraggingRight) return;
+      if (isDraggingLeft) return;
+
+      const isHardSwipe = velocity > 2;
+      const isStoppedDragging = !active;
+      const navigateThreshold = frameWidth * 0.3;
+      const didTriggerNavigate = mx > navigateThreshold;
 
       if (isStoppedDragging) {
         if (isHardSwipe) {
