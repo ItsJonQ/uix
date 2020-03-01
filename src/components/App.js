@@ -248,12 +248,14 @@ function useScreenSwipeGestures({ onNavigate = noop }) {
       if (!canDrag) return;
       if (isDraggingRight) return;
 
-      if (isHardSwipe) {
-        return onNavigate();
-      }
+      if (isStoppedDragging) {
+        if (isHardSwipe) {
+          return onNavigate();
+        }
 
-      if (isStoppedDragging && didTriggerNavigate) {
-        return onNavigate();
+        if (didTriggerNavigate) {
+          return onNavigate();
+        }
       }
 
       const resetValue = didTriggerNavigate ? 0 : 1;
