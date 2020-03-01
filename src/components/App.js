@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useRef } from "react";
 import {
   HashRouter as Router,
   useHistory,
@@ -8,11 +8,17 @@ import useMeasure from "react-use-measure";
 import { noop } from "lodash";
 import { css } from "@emotion/core";
 import styled from "@emotion/styled";
-import { useSpring, animated } from "react-spring";
-import { useDrag } from "react-use-gesture";
+import { useSpring, animated, to, createInterpolator } from "react-spring";
+import { useDrag, useScroll } from "react-use-gesture";
 import { ThemeProvider } from "emotion-theming";
 
 const FRAME_WIDTH = 360;
+const DETAILS_HEADER_HEIGHTS_BP = [138, 154, 188];
+const DETAILS_HEADER_HEIGHTS = [
+  DETAILS_HEADER_HEIGHTS_BP[0],
+  DETAILS_HEADER_HEIGHTS_BP[2]
+];
+const DETAILS_HEADER_HEIGHT = DETAILS_HEADER_HEIGHTS[1];
 
 export const AppContext = React.createContext({ frameWidth: FRAME_WIDTH });
 export const useAppContext = () => useContext(AppContext);
@@ -36,6 +42,10 @@ function AppProvider({ children }) {
   const [{ mx }, setMX] = useSpring(() => ({
     mx: canDrag ? 1 : 0
   }));
+  const [{ headerHeight }, setHeaderHeight] = useSpring(() => ({
+    headerHeight: DETAILS_HEADER_HEIGHT
+  }));
+
   const [frameWidth, setFrameWidth] = useState(FRAME_WIDTH);
   const [isDarkMode, setIsDarkMode] = useState(false);
 
@@ -54,7 +64,9 @@ function AppProvider({ children }) {
     setFrameWidth,
     isDarkMode,
     setIsDarkMode,
-    toggleDarkMode
+    toggleDarkMode,
+    headerHeight,
+    setHeaderHeight
   };
 
   const theme = {
@@ -62,7 +74,8 @@ function AppProvider({ children }) {
     color: isDarkMode ? "white" : "black",
     borderColor: isDarkMode ? "#555" : "#ddd",
     transition:
-      "background 200ms ease, border-color 200ms ease, color 200ms ease"
+      "background 200ms ease, border-color 200ms ease, color 200ms ease",
+    skeletonBackground: isDarkMode ? "#333" : "#ddd"
   };
 
   return (
@@ -103,11 +116,30 @@ function FrameRef() {
 }
 
 function HeaderBar() {
-  const { mx } = useAppContext();
+  const { mx, headerHeight } = useAppContext();
   const navigateTo = useNavigateTo();
 
   const style = {
-    height: mx.to([0, 1], [50, 192])
+    height: to([mx, headerHeight], (m, h) => {
+      const mxValue = createInterpolator([0, 1], [50, 192])(m);
+      const headerValue = createInterpolator(DETAILS_HEADER_HEIGHTS, [50, 192])(
+        h
+      );
+      const headerTestValue = createInterpolator(DETAILS_HEADER_HEIGHTS, [
+        0,
+        1
+      ])(h);
+
+      if (m !== 1) {
+        return mxValue;
+      }
+
+      if (headerTestValue < 1) {
+        return headerValue;
+      }
+
+      return mxValue;
+    })
   };
 
   const actionRightStyle = {
@@ -130,11 +162,51 @@ function HeaderBar() {
 }
 
 function HeaderActions() {
-  const { mx } = useAppContext();
+  const { mx, headerHeight } = useAppContext();
 
   const style = {
-    top: mx.to([0, 1], [8, 128]),
-    opacity: mx,
+    top: to([mx, headerHeight], (m, h) => {
+      const mxValue = createInterpolator([0, 1], [8, 128])(m);
+      const headerValue = createInterpolator(DETAILS_HEADER_HEIGHTS, [0, 128])(
+        h
+      );
+      const headerTestValue = createInterpolator(DETAILS_HEADER_HEIGHTS, [
+        0,
+        1
+      ])(h);
+
+      if (m !== 1) {
+        return mxValue;
+      }
+
+      if (headerTestValue < 1) {
+        return headerValue;
+      }
+
+      return mxValue;
+    }),
+    opacity: to([mx, headerHeight], (m, h) => {
+      const mxValue = m;
+      const headerValue = createInterpolator(DETAILS_HEADER_HEIGHTS_BP, [
+        0,
+        1,
+        1
+      ])(h);
+      const headerTestValue = createInterpolator(DETAILS_HEADER_HEIGHTS, [
+        0,
+        1
+      ])(m);
+
+      if (m !== 1) {
+        return mxValue;
+      }
+
+      if (headerTestValue < 1 && mxValue === 1) {
+        return headerValue;
+      }
+
+      return mxValue;
+    }),
     scale: mx
   };
 
@@ -149,10 +221,31 @@ function HeaderActions() {
 }
 
 function HeaderAction({ label }) {
-  const { mx } = useAppContext();
+  const { mx, headerHeight } = useAppContext();
 
   const iconButtonWrapperStyle = {
-    scale: mx
+    scale: to([mx, headerHeight], (m, h) => {
+      const mxValue = m;
+      const headerValue = createInterpolator(DETAILS_HEADER_HEIGHTS_BP, [
+        0,
+        1,
+        1
+      ])(h);
+      const headerTestValue = createInterpolator(DETAILS_HEADER_HEIGHTS, [
+        0,
+        1
+      ])(h);
+
+      if (m !== 1) {
+        return mxValue;
+      }
+
+      if (headerTestValue < 1) {
+        return headerValue;
+      }
+
+      return m;
+    })
   };
 
   return (
@@ -164,7 +257,7 @@ function HeaderAction({ label }) {
 }
 
 function Avatar({ onClick = noop }) {
-  const { mx, frameWidth } = useAppContext();
+  const { mx, headerHeight, frameWidth } = useAppContext();
   const RIGHT_CENTER = frameWidth / 2;
   const smallOffsetRight = 4;
   const sizes = [40, 64];
@@ -173,10 +266,47 @@ function Avatar({ onClick = noop }) {
 
   const style = {
     right: mx.to([0, 1], rightRange),
-    top: mx.to([0, 1], [4, 8]),
-    transform: `translateX(50%)`,
+    top: to([mx, headerHeight], (m, h) => {
+      const mxValue = createInterpolator([0, 1], [4, 8])(m);
+      const headerTopValue = createInterpolator(DETAILS_HEADER_HEIGHTS_BP, [
+        -58,
+        -58,
+        8
+      ])(h);
+      const headerTestValue = createInterpolator(DETAILS_HEADER_HEIGHTS, [
+        0,
+        1
+      ])(h);
+
+      if (m !== 1) {
+        return mxValue;
+      }
+
+      if (headerTestValue < 1) {
+        return headerTopValue;
+      }
+
+      return mxValue;
+    }),
+    marginRight: mx.to([0, 1], [(sizes[0] / 2) * -1, (sizes[1] / 2) * -1]),
     height: mx.to([0, 1], sizes),
-    width: mx.to([0, 1], sizes)
+    width: mx.to([0, 1], sizes),
+    scale: to([headerHeight], h => {
+      const headerTopValue = createInterpolator(DETAILS_HEADER_HEIGHTS, [
+        0.5,
+        1
+      ])(h);
+      const headerTestValue = createInterpolator(DETAILS_HEADER_HEIGHTS, [
+        0,
+        1
+      ])(h);
+
+      if (headerTestValue < 1) {
+        return headerTopValue;
+      }
+
+      return 1;
+    })
   };
 
   return (
@@ -191,18 +321,55 @@ function HeaderTitle({
   subtitle = "nickname",
   onClick = noop
 }) {
-  const { mx } = useAppContext();
-
-  const top = [8, 80];
-  const titleScale = [1, 1.3];
+  const { mx, headerHeight } = useAppContext();
 
   const style = {
-    top: mx.to([0, 1], top),
+    top: to([mx, headerHeight], (m, h) => {
+      const mxValue = createInterpolator([0, 1], [8, 80])(m);
+      const headerValue = createInterpolator(DETAILS_HEADER_HEIGHTS_BP, [
+        8,
+        8,
+        80
+      ])(h);
+      const headerTestValue = createInterpolator(DETAILS_HEADER_HEIGHTS, [
+        0,
+        1
+      ])(h);
+
+      if (m !== 1) {
+        return mxValue;
+      }
+
+      if (headerTestValue < 1) {
+        return headerValue;
+      }
+      return mxValue;
+    }),
     marginBottom: mx.to([0, 1], [0, 2])
   };
 
   const titleStyle = {
-    scale: mx.to([0, 1], titleScale)
+    scale: to([mx, headerHeight], (m, h) => {
+      const mxValue = createInterpolator([0, 1], [1, 1.3])(m);
+      const headerValue = createInterpolator(DETAILS_HEADER_HEIGHTS_BP, [
+        1,
+        1,
+        1.3
+      ])(h);
+      const headerTestValue = createInterpolator(DETAILS_HEADER_HEIGHTS, [
+        0,
+        1
+      ])(h);
+
+      if (m !== 1) {
+        return mxValue;
+      }
+
+      if (headerTestValue < 1) {
+        return headerValue;
+      }
+      return mxValue;
+    })
   };
 
   return (
@@ -216,18 +383,89 @@ function HeaderTitle({
 }
 
 function DetailsScreen() {
-  const { mx } = useAppContext();
+  const canDrag = useCanDrag();
+  const scrollContainerRef = useRef();
+  const { mx, headerHeight, setHeaderHeight } = useAppContext();
+  const initialHeight = DETAILS_HEADER_HEIGHTS[1];
+
+  useEffect(() => {
+    if (canDrag && scrollContainerRef.current) {
+      const node = scrollContainerRef.current.children[0];
+      console.log(node);
+      node.scrollTop = 0;
+    }
+  }, [canDrag]);
+
+  const bindScrollGestures = useScroll(
+    ({ event, offset }) => {
+      const [, y] = offset;
+      const maxScrollThreshold = 50;
+
+      if (!canDrag) {
+        return setHeaderHeight({
+          headerHeight: initialHeight,
+          immediate: true
+        });
+      }
+
+      if (y === 0) {
+        return setHeaderHeight({
+          headerHeight: initialHeight,
+          immediate: true
+        });
+      }
+
+      if (y < maxScrollThreshold) {
+        return setHeaderHeight({
+          headerHeight: initialHeight - y,
+          immediate: true
+        });
+      }
+      return setHeaderHeight({
+        headerHeight: DETAILS_HEADER_HEIGHTS[0],
+        immediate: true
+      });
+    },
+    {
+      eventOptions: { passive: false }
+    }
+  );
+
   const style = {
     x: mx.to([0, 1], [360, 0])
   };
+
   const contentStyle = {
     opacity: mx
   };
 
+  const placeholderStyle = {
+    height: headerHeight.to(DETAILS_HEADER_HEIGHTS, [108, 188])
+  };
+
   return (
-    <ScreenView style={style}>
-      <ScreenContentView style={contentStyle}>Details View</ScreenContentView>
+    <ScreenView style={style} ref={scrollContainerRef}>
+      <ScreenContentView style={contentStyle} {...bindScrollGestures()}>
+        <ScreenHeaderPlaceholderView style={placeholderStyle} />
+        <Skeletons />
+      </ScreenContentView>
     </ScreenView>
+  );
+}
+
+function Skeletons() {
+  return (
+    <>
+      <SkeletonView style={{ height: 120 }} />
+      <SkeletonView />
+      <SkeletonView />
+      <SkeletonView style={{ height: 200 }} />
+      <SkeletonView />
+      <SkeletonView />
+      <SkeletonView />
+      <SkeletonView style={{ height: 120 }} />
+      <SkeletonView style={{ height: 120 }} />
+    </>
   );
 }
 
@@ -412,13 +650,18 @@ const ScreenView = styled(animated.div)`
   bottom: 0;
 `;
 
+const ScreenHeaderPlaceholderView = styled(animated.div)`
+  height: 188px;
+`;
+
 const ScreenContentView = styled(animated.div)`
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 208px 20px 20px;
+  padding: 20px;
+  overflow-y: auto;
   ${backgroundStyles};
   ${colorStyles};
 `;
@@ -463,6 +706,12 @@ const FrameReferenceView = styled.div`
   z-index: -1;
   opacity: 0;
   pointer-events: none;
+`;
+
+const SkeletonView = styled.div`
+  padding: 10px;
+  margin-bottom: 12px;
+  ${({ theme }) => css({ background: theme.skeletonBackground })};
 `;
 
 export default App;
