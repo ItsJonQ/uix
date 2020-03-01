@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext, useRef } from "react";
 import {
-  HashRouter as Router,
+  MemoryRouter as Router,
   useHistory,
   useRouteMatch
 } from "react-router-dom";
@@ -11,8 +11,14 @@ import styled from "@emotion/styled";
 import { useSpring, animated, to, createInterpolator } from "react-spring";
 import { useDrag, useScroll } from "react-use-gesture";
 import { ThemeProvider } from "emotion-theming";
+import {
+  FRAME_WIDTH,
+  FrameContainerView,
+  FrameActionsView,
+  FrameView,
+  SkeletonView
+} from "../components";
 
-const FRAME_WIDTH = 360;
 const DETAILS_HEADER_HEIGHTS_BP = [138, 154, 188];
 const DETAILS_HEADER_HEIGHTS = [
   DETAILS_HEADER_HEIGHTS_BP[0],
@@ -544,37 +550,6 @@ const borderColorStyles = ({ theme }) =>
 const colorStyles = ({ theme }) =>
   css({ color: theme.color, transition: theme.transition });
 
-const FrameContainerView = styled.div`
-  align-items: center;
-  background-color: #ddd;
-  display: flex;
-  height: 100vh;
-  justify-content: center;
-  position: relative;
-  width: 100%;
-  padding: 16px;
-  flex-direction: column;
-`;
-
-const FrameActionsView = styled.div`
-  position: absolute;
-  top: 8px;
-  left: 8px;
-`;
-
-const FrameView = styled.div`
-  width: 100%;
-  max-width: 360px;
-  height: 100%;
-  max-height: 640px;
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08), 0 12px 20px rgba(0, 0, 0, 0.08);
-  overflow: hidden;
-  user-select: none;
-  position: relative;
-  ${backgroundStyles};
-`;
-
 const HeaderView = styled(animated.div)`
   height: 50px;
   border-bottom: 1px solid;
@@ -706,12 +681,6 @@ const FrameReferenceView = styled.div`
   z-index: -1;
   opacity: 0;
   pointer-events: none;
-`;
-
-const SkeletonView = styled.div`
-  padding: 10px;
-  margin-bottom: 12px;
-  ${({ theme }) => css({ background: theme.skeletonBackground })};
 `;
 
 export default App;
