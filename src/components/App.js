@@ -6,7 +6,7 @@ import {
 } from "react-router-dom";
 import { noop } from "lodash";
 import styled from "@emotion/styled";
-import { useSpring } from "react-spring";
+import { useSpring, animated } from "react-spring";
 import { useDrag } from "react-use-gesture";
 
 export const AppContext = React.createContext({});
@@ -14,43 +14,63 @@ export const useAppContext = () => useContext(AppContext);
 
 function App() {
   return (
-    <AppProvider>
-      <FrameProvider>
-        <HeaderBar />
-      </FrameProvider>
-    </AppProvider>
-  );
-}
-
-function AppProvider({ children }) {
-  const [{ x, mx }, setDragX] = useSpring(() => ({ x: 0, mx: 0 }));
-
-  const contextValue = {
-    dragX: x,
-    dragMX: mx,
-    setDragX
-  };
-
-  return (
     <Router>
-      <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>
+      <AppProvider>
+        <FrameProvider>
+          <HeaderBar />
+        </FrameProvider>
+      </AppProvider>
     </Router>
   );
 }
 
+function AppProvider({ children }) {
+  const canDrag = useCanDrag();
+  const [{ mx }, setDragMX] = useSpring(() => ({ mx: canDrag ? 1 : 0 }));
+
+  useEffect(() => {
+    setDragMX({
+      mx: canDrag ? 1 : 0
+    });
+  }, [canDrag, setDragMX]);
+
+  const contextValue = {
+    mx,
+    setDragMX
+  };
+
+  return (
+    <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>
+  );
+}
+
 function FrameProvider({ children }) {
-  const { setDragX } = useAppContext();
+  const { setDragMX } = useAppContext();
+  const navigateTo = useNavigateTo();
   const MAX = 360;
+  const canDrag = useCanDrag();
+
   const bindGestures = useDrag(
-    ({ down, event, movement, cancel }) => {
+    ({ down, movement, active }) => {
       const [mx] = movement;
-      if (mx > 0) {
-        setDragX({
-          x: down ? mx : 0,
-          mx: down ? ((MAX + mx) / MAX - 1) * 100 : 0,
-          immediate: down
-        });
+      const navigateThreshold = MAX * 0.7;
+      const didTriggerNavigate = mx > navigateThreshold;
+      const resetValue = didTriggerNavigate ? 0 : 1;
+      const nextMX = (MAX - mx) / MAX;
+
+      if (!canDrag) return;
+      if (mx < 0) return;
+
+      if (!active) {
+        if (didTriggerNavigate) {
+          return navigateTo.home();
+        }
       }
+
+      setDragMX({
+        mx: down ? nextMX : resetValue,
+        immediate: down
+      });
     },
     {
       bounds: {
@@ -67,25 +87,23 @@ function FrameProvider({ children }) {
 }
 
 function HeaderBar() {
+  const { mx } = useAppContext();
   const navigateTo = useNavigateTo();
-  const isBig = !!useRouteMatch("/details");
 
   const heights = [50, 128];
 
   const style = {
-    height: isBig ? heights[1] : heights[0],
-    transition: `all 200ms ease`
+    height: mx.interpolate([0, 1], heights)
   };
 
   const actionRightStyle = {
-    opacity: isBig ? 1 : 0,
-    transition: `all 200ms ease`
+    opacity: mx
   };
 
   return (
     <HeaderView style={style}>
-      <HeaderTitle isBig={isBig} onClick={navigateTo.details} />
-      <Avatar isBig={isBig} onClick={navigateTo.details} />
+      <HeaderTitle onClick={navigateTo.details} />
+      <Avatar onClick={navigateTo.details} />
       <HeaderActionLeftView>
         <ButtonView onClick={navigateTo.home}>Back</ButtonView>
       </HeaderActionLeftView>
@@ -96,19 +114,23 @@ function HeaderBar() {
   );
 }
 
-function Avatar({ isBig = false, onClick = noop }) {
+function Avatar({ onClick = noop }) {
+  const { mx } = useAppContext();
+  const MAX = 360;
+  const RIGHT_CENTER = MAX / 2;
   const smallOffsetRight = 4;
   const sizes = [40, 64];
-  const right = [sizes[0] / 2 + smallOffsetRight * 2, "50%"];
+  const right = sizes[0] / 2 + smallOffsetRight * 2;
   const top = [4, 8];
 
+  const rightRange = [right, RIGHT_CENTER];
+
   const style = {
-    right: isBig ? right[1] : right[0],
-    top: isBig ? top[1] : top[0],
-    width: isBig ? sizes[1] : sizes[0],
-    height: isBig ? sizes[1] : sizes[0],
+    right: mx.interpolate([0, 1], rightRange),
+    top: mx.interpolate([0, 1], top),
     transform: `translateX(50%)`,
-    transition: `all 200ms ease`
+    height: mx.interpolate([0, 1], sizes),
+    width: mx.interpolate([0, 1], sizes)
   };
 
   return (
@@ -119,22 +141,22 @@ function Avatar({ isBig = false, onClick = noop }) {
 }
 
 function HeaderTitle({
-  isBig = false,
   title = "User name",
   subtitle = "nickname",
   onClick = noop
 }) {
+  const { mx } = useAppContext();
+
   const top = [8, 80];
   const titleScale = [1, 1.2];
 
   const style = {
-    top: isBig ? top[1] : top[0],
-    transition: `all 200ms ease`
+    top: mx.interpolate([0, 1], top),
+    marginBottom: mx.interpolate([0, 1], [0, 2])
   };
 
   const titleStyle = {
-    transform: isBig ? `scale(${titleScale[1]})` : `scale(${titleScale[0]})`,
-    transition: `all 200ms ease`
+    scale: mx.interpolate([0, 1], titleScale)
   };
 
   return (
@@ -145,6 +167,12 @@ function HeaderTitle({
       <HeaderSubtitleView>{subtitle}</HeaderSubtitleView>
     </HeaderTitleWrapperView>
   );
+}
+
+function useCanDrag() {
+  const isDetailsRoute = useRouteMatch("/details");
+
+  return !!isDetailsRoute;
 }
 
 function useNavigateTo() {
@@ -194,14 +222,14 @@ const FrameView = styled.div`
   user-select: none;
 `;
 
-const HeaderView = styled.div`
+const HeaderView = styled(animated.div)`
   background: white;
   height: 50px;
   border-bottom: 1px solid #eee;
   position: relative;
 `;
 
-const HeaderTitleWrapperView = styled.div`
+const HeaderTitleWrapperView = styled(animated.div)`
   position: absolute;
   top: 8px;
   text-align: center;
@@ -209,10 +237,11 @@ const HeaderTitleWrapperView = styled.div`
   transform: translateX(-50%);
 `;
 
-const HeaderTitleView = styled.div`
+const HeaderTitleView = styled(animated.div)`
   font-size: 14px;
   font-weight: 500;
   margin-bottom: 2px;
+  cursor: pointer;
 `;
 
 const HeaderSubtitleView = styled.div`
@@ -225,9 +254,10 @@ const AvatarView = styled.div`
   width: 100%;
   height: 100%;
   border-radius: 50%;
+  cursor: pointer;
 `;
 
-const AvatarWrapperView = styled.div`
+const AvatarWrapperView = styled(animated.div)`
   position: absolute;
   right: 4px;
   top: 4px;
@@ -240,7 +270,7 @@ const HeaderActionLeftView = styled.div`
   left: 10px;
 `;
 
-const HeaderActionRightView = styled.div`
+const HeaderActionRightView = styled(animated.div)`
   position: absolute;
   top: 15px;
   right: 10px;
@@ -254,9 +284,5 @@ const ButtonView = styled.button`
   outline: none;
   cursor: pointer;
 `;
-
-// function normalize(val, max, min) {
-//   return (val - min) / (max - min);
-// }
 
 export default App;
