@@ -107,7 +107,7 @@ function HeaderBar() {
   const navigateTo = useNavigateTo();
 
   const style = {
-    height: mx.interpolate([0, 1], [50, 192])
+    height: mx.to([0, 1], [50, 192])
   };
 
   const actionRightStyle = {
@@ -133,7 +133,7 @@ function HeaderActions() {
   const { mx } = useAppContext();
 
   const style = {
-    top: mx.interpolate([0, 1], [8, 128]),
+    top: mx.to([0, 1], [8, 128]),
     opacity: mx,
     scale: mx
   };
@@ -172,11 +172,11 @@ function Avatar({ onClick = noop }) {
   const rightRange = [right, RIGHT_CENTER];
 
   const style = {
-    right: mx.interpolate([0, 1], rightRange),
-    top: mx.interpolate([0, 1], [4, 8]),
+    right: mx.to([0, 1], rightRange),
+    top: mx.to([0, 1], [4, 8]),
     transform: `translateX(50%)`,
-    height: mx.interpolate([0, 1], sizes),
-    width: mx.interpolate([0, 1], sizes)
+    height: mx.to([0, 1], sizes),
+    width: mx.to([0, 1], sizes)
   };
 
   return (
@@ -197,12 +197,12 @@ function HeaderTitle({
   const titleScale = [1, 1.3];
 
   const style = {
-    top: mx.interpolate([0, 1], top),
-    marginBottom: mx.interpolate([0, 1], [0, 2])
+    top: mx.to([0, 1], top),
+    marginBottom: mx.to([0, 1], [0, 2])
   };
 
   const titleStyle = {
-    scale: mx.interpolate([0, 1], titleScale)
+    scale: mx.to([0, 1], titleScale)
   };
 
   return (
@@ -218,7 +218,7 @@ function HeaderTitle({
 function DetailsScreen() {
   const { mx } = useAppContext();
   const style = {
-    x: mx.interpolate([0, 1], [360, 0])
+    x: mx.to([0, 1], [360, 0])
   };
   const contentStyle = {
     opacity: mx
@@ -236,16 +236,21 @@ function useScreenSwipeGestures({ onNavigate = noop }) {
   const canDrag = useCanDrag();
 
   const bindGestures = useDrag(
-    ({ down, movement, active }) => {
+    ({ down, movement, velocity, active }) => {
       const [mx] = movement;
 
       const isStoppedDragging = !active;
       const isDraggingRight = mx < 0;
-      const navigateThreshold = frameWidth * 0.7;
+      const isHardSwipe = velocity > 2;
+      const navigateThreshold = frameWidth * 0.3;
       const didTriggerNavigate = mx > navigateThreshold;
 
       if (!canDrag) return;
       if (isDraggingRight) return;
+
+      if (isHardSwipe) {
+        return onNavigate();
+      }
 
       if (isStoppedDragging && didTriggerNavigate) {
         return onNavigate();
