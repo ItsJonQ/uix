@@ -4,12 +4,17 @@ import {
   useHistory,
   useRouteMatch
 } from "react-router-dom";
+import useMeasure from "react-use-measure";
 import { noop } from "lodash";
+import { css } from "@emotion/core";
 import styled from "@emotion/styled";
 import { useSpring, animated } from "react-spring";
 import { useDrag } from "react-use-gesture";
+import { ThemeProvider } from "emotion-theming";
 
-export const AppContext = React.createContext({});
+const FRAME_WIDTH = 360;
+
+export const AppContext = React.createContext({ frameWidth: FRAME_WIDTH });
 export const useAppContext = () => useContext(AppContext);
 
 function App() {
@@ -18,6 +23,7 @@ function App() {
       <AppProvider>
         <FrameProvider>
           <HeaderBar />
+          <DetailsScreen />
         </FrameProvider>
       </AppProvider>
     </Router>
@@ -26,74 +32,82 @@ function App() {
 
 function AppProvider({ children }) {
   const canDrag = useCanDrag();
-  const [{ mx }, setDragMX] = useSpring(() => ({ mx: canDrag ? 1 : 0 }));
+
+  const [{ mx }, setMX] = useSpring(() => ({
+    mx: canDrag ? 1 : 0
+  }));
+  const [frameWidth, setFrameWidth] = useState(FRAME_WIDTH);
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   useEffect(() => {
-    setDragMX({
+    setMX({
       mx: canDrag ? 1 : 0
     });
-  }, [canDrag, setDragMX]);
+  }, [canDrag, setMX]);
+
+  const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
 
   const contextValue = {
     mx,
-    setDragMX
+    setMX,
+    frameWidth,
+    setFrameWidth,
+    isDarkMode,
+    setIsDarkMode,
+    toggleDarkMode
+  };
+
+  const theme = {
+    background: isDarkMode ? "black" : "white",
+    color: isDarkMode ? "white" : "black",
+    borderColor: isDarkMode ? "#555" : "#ddd",
+    transition:
+      "background 200ms ease, border-color 200ms ease, color 200ms ease"
   };
 
   return (
-    <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>
+    <AppContext.Provider value={contextValue}>
+      <ThemeProvider theme={theme}>{children}</ThemeProvider>
+    </AppContext.Provider>
   );
 }
 
 function FrameProvider({ children }) {
-  const { setDragMX } = useAppContext();
+  const { toggleDarkMode } = useAppContext();
   const navigateTo = useNavigateTo();
-  const MAX = 360;
-  const canDrag = useCanDrag();
-
-  const bindGestures = useDrag(
-    ({ down, movement, active }) => {
-      const [mx] = movement;
-      const navigateThreshold = MAX * 0.7;
-      const didTriggerNavigate = mx > navigateThreshold;
-      const resetValue = didTriggerNavigate ? 0 : 1;
-      const nextMX = (MAX - mx) / MAX;
-
-      if (!canDrag) return;
-      if (mx < 0) return;
-
-      if (!active) {
-        if (didTriggerNavigate) {
-          return navigateTo.home();
-        }
-      }
-
-      setDragMX({
-        mx: down ? nextMX : resetValue,
-        immediate: down
-      });
-    },
-    {
-      bounds: {
-        right: MAX
-      }
-    }
-  );
+  const bindGestures = useScreenSwipeGestures({ onNavigate: navigateTo.home });
 
   return (
     <FrameContainerView>
-      <FrameView {...bindGestures()}>{children}</FrameView>
+      <FrameView {...bindGestures()}>
+        {children}
+        <FrameRef />
+      </FrameView>
+      <FrameActionsView>
+        <h4 style={{ margin: "8px 0" }}>Chat: User Details UI Example</h4>
+        <button onClick={toggleDarkMode}>Toggle Dark Mode</button>
+      </FrameActionsView>
     </FrameContainerView>
   );
+}
+
+function FrameRef() {
+  const { setFrameWidth } = useAppContext();
+  const [ref, bounds] = useMeasure();
+
+  useEffect(() => {
+    setFrameWidth(bounds.width);
+  }, [bounds.width, setFrameWidth]);
+
+  return <FrameReferenceView ref={ref} />;
 }
 
 function HeaderBar() {
   const { mx } = useAppContext();
   const navigateTo = useNavigateTo();
 
-  const heights = [50, 128];
-
   const style = {
-    height: mx.interpolate([0, 1], heights)
+    height: mx.interpolate([0, 1], [50, 192])
   };
 
   const actionRightStyle = {
@@ -110,24 +124,56 @@ function HeaderBar() {
       <HeaderActionRightView style={actionRightStyle}>
         <ButtonView>Edit</ButtonView>
       </HeaderActionRightView>
+      <HeaderActions />
     </HeaderView>
   );
 }
 
-function Avatar({ onClick = noop }) {
+function HeaderActions() {
   const { mx } = useAppContext();
-  const MAX = 360;
-  const RIGHT_CENTER = MAX / 2;
+
+  const style = {
+    top: mx.interpolate([0, 1], [8, 128]),
+    opacity: mx,
+    scale: mx
+  };
+
+  return (
+    <ActionButtonContainerView style={style}>
+      <HeaderAction label="Call" />
+      <HeaderAction label="Mute" />
+      <HeaderAction label="Search" />
+      <HeaderAction label="More" />
+    </ActionButtonContainerView>
+  );
+}
+
+function HeaderAction({ label }) {
+  const { mx } = useAppContext();
+
+  const iconButtonWrapperStyle = {
+    scale: mx
+  };
+
+  return (
+    <IconButtonWrapperView style={iconButtonWrapperStyle}>
+      <IconButtonView />
+      <IconButtonLabel>{label}</IconButtonLabel>
+    </IconButtonWrapperView>
+  );
+}
+
+function Avatar({ onClick = noop }) {
+  const { mx, frameWidth } = useAppContext();
+  const RIGHT_CENTER = frameWidth / 2;
   const smallOffsetRight = 4;
   const sizes = [40, 64];
   const right = sizes[0] / 2 + smallOffsetRight * 2;
-  const top = [4, 8];
-
   const rightRange = [right, RIGHT_CENTER];
 
   const style = {
     right: mx.interpolate([0, 1], rightRange),
-    top: mx.interpolate([0, 1], top),
+    top: mx.interpolate([0, 1], [4, 8]),
     transform: `translateX(50%)`,
     height: mx.interpolate([0, 1], sizes),
     width: mx.interpolate([0, 1], sizes)
@@ -148,7 +194,7 @@ function HeaderTitle({
   const { mx } = useAppContext();
 
   const top = [8, 80];
-  const titleScale = [1, 1.2];
+  const titleScale = [1, 1.3];
 
   const style = {
     top: mx.interpolate([0, 1], top),
@@ -169,6 +215,61 @@ function HeaderTitle({
   );
 }
 
+function DetailsScreen() {
+  const { mx } = useAppContext();
+  const style = {
+    x: mx.interpolate([0, 1], [360, 0])
+  };
+  const contentStyle = {
+    opacity: mx
+  };
+
+  return (
+    <ScreenView style={style}>
+      <ScreenContentView style={contentStyle}>Details View</ScreenContentView>
+    </ScreenView>
+  );
+}
+
+function useScreenSwipeGestures({ onNavigate = noop }) {
+  const { setMX, frameWidth } = useAppContext();
+  const canDrag = useCanDrag();
+
+  const bindGestures = useDrag(
+    ({ down, movement, active }) => {
+      const [mx] = movement;
+
+      const isStoppedDragging = !active;
+      const isDraggingRight = mx < 0;
+      const navigateThreshold = frameWidth * 0.7;
+      const didTriggerNavigate = mx > navigateThreshold;
+
+      if (!canDrag) return;
+      if (isDraggingRight) return;
+
+      if (isStoppedDragging && didTriggerNavigate) {
+        return onNavigate();
+      }
+
+      const resetValue = didTriggerNavigate ? 0 : 1;
+      const nextMX = (frameWidth - mx) / frameWidth;
+
+      setMX({
+        mx: down ? nextMX : resetValue,
+        immediate: down
+      });
+    },
+    {
+      threshold: 36,
+      bounds: {
+        right: frameWidth
+      }
+    }
+  );
+
+  return bindGestures;
+}
+
 function useCanDrag() {
   const isDetailsRoute = useRouteMatch("/details");
 
@@ -184,19 +285,18 @@ function useNavigateTo() {
   };
 }
 
-export function usePosition({ ref }) {
-  const [position, setPosition] = useState({});
-
-  useEffect(() => {
-    const node = ref.current;
-    if (node) {
-      const bounds = node.getBoundingClientRect();
-      setPosition(bounds);
-    }
-  }, [ref]);
-
-  return position;
-}
+const backgroundStyles = ({ theme }) =>
+  css({
+    background: theme.background,
+    transition: theme.transition
+  });
+const borderColorStyles = ({ theme }) =>
+  css({
+    borderColor: theme.borderColor,
+    transition: theme.transition
+  });
+const colorStyles = ({ theme }) =>
+  css({ color: theme.color, transition: theme.transition });
 
 const FrameContainerView = styled.div`
   align-items: center;
@@ -210,8 +310,13 @@ const FrameContainerView = styled.div`
   flex-direction: column;
 `;
 
+const FrameActionsView = styled.div`
+  position: absolute;
+  top: 8px;
+  left: 8px;
+`;
+
 const FrameView = styled.div`
-  background: white;
   width: 100%;
   max-width: 360px;
   height: 100%;
@@ -220,13 +325,17 @@ const FrameView = styled.div`
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08), 0 12px 20px rgba(0, 0, 0, 0.08);
   overflow: hidden;
   user-select: none;
+  position: relative;
+  ${backgroundStyles};
 `;
 
 const HeaderView = styled(animated.div)`
-  background: white;
   height: 50px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid;
   position: relative;
+  z-index: 1;
+  ${backgroundStyles};
+  ${borderColorStyles};
 `;
 
 const HeaderTitleWrapperView = styled(animated.div)`
@@ -235,6 +344,7 @@ const HeaderTitleWrapperView = styled(animated.div)`
   text-align: center;
   left: 50%;
   transform: translateX(-50%);
+  ${colorStyles};
 `;
 
 const HeaderTitleView = styled(animated.div)`
@@ -278,11 +388,73 @@ const HeaderActionRightView = styled(animated.div)`
 
 const ButtonView = styled.button`
   appearance: none;
-  color: blue;
+  background: transparent;
+  color: dodgerblue;
   border: none;
   font-size: 14px;
   outline: none;
   cursor: pointer;
+`;
+
+const ScreenView = styled(animated.div)`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+`;
+
+const ScreenContentView = styled(animated.div)`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 208px 20px 20px;
+  ${backgroundStyles};
+  ${colorStyles};
+`;
+
+const ActionButtonContainerView = styled(animated.div)`
+  position: absolute;
+  top: 0;
+  display: flex;
+  justify-content: space-between;
+  width: 75%;
+  left: calc(25% / 2);
+`;
+
+const IconButtonWrapperView = styled(animated.div)`
+  padding: 0 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+`;
+
+const IconButtonView = styled.div`
+  background: dodgerblue;
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+`;
+
+const IconButtonLabel = styled.div`
+  color: dodgerblue;
+  margin-top: 4px;
+  font-size: 11px;
+  text-align: center;
+`;
+
+const FrameReferenceView = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: -1;
+  opacity: 0;
+  pointer-events: none;
 `;
 
 export default App;
