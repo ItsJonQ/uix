@@ -3,7 +3,7 @@ import styled from "@emotion/styled";
 import { FrameContainerView, FrameView, SkeletonView } from "../components";
 import { useScroll } from "react-use-gesture";
 import { animated, useSpring, to, createInterpolator } from "react-spring";
-import AvatarImage from "../images/avatar.jpg";
+import AvatarImage from "../images/avatar.png";
 import CoverImage from "../images/cover.jpg";
 
 const SCROLL_MAX = 100;
@@ -12,8 +12,8 @@ const AppContext = React.createContext({});
 const useAppContext = () => React.useContext(AppContext);
 
 export function App() {
-  const name = "Michelle Akerfeldt";
-  const handle = "@m_akerfeldt";
+  const name = "Q";
+  const handle = "@itsjonq";
   const count = "12.1K";
 
   return (
@@ -65,7 +65,7 @@ function ProfileCover({ name, count }) {
     <ProfileCoverView>
       <CoverContentView style={contentStyle}>
         <CoverNameView>{name}</CoverNameView>
-        <CoverCountView>{count} Chomps</CoverCountView>
+        <CoverCountView>{count} Bloops</CoverCountView>
       </CoverContentView>
       <ProfileCoverImageView style={imageStyle}>
         <ImageView src={CoverImage} />
@@ -183,6 +183,7 @@ const AvatarWrapperView = styled(animated.div)`
 `;
 
 const AvatarView = styled(animated.div)`
+  background: white;
   width: 100%;
   height: 100%;
   border-radius: 50%;
