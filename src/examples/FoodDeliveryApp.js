@@ -1,5 +1,7 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { css } from "@emotion/core";
 import styled from "@emotion/styled";
+import { useRadioState, Radio, RadioGroup } from "reakit/Radio";
 import { FrameContainerView, FrameView } from "../components";
 import { useScroll } from "react-use-gesture";
 import { animated, useSpring, createInterpolator } from "react-spring";
@@ -18,7 +20,7 @@ export function App() {
           <HeaderNavigation />
           <Cover />
           <Header />
-          <BodyView />
+          <Body />
         </ScreenProvider>
       </FrameProvider>
     </AppProvider>
@@ -92,7 +94,7 @@ function Header() {
   const scrollTopPointInputRange = [0, scrollTopPoint];
 
   const headerStyle = {
-    height: scrollY.to(scrollTopPointInputRange, [156, 100])
+    height: scrollY.to(scrollTopPointInputRange, [156, 120])
   };
   const titleStyle = {
     fontSize: scrollY.to(scrollTopPointInputRange, [21, 18]),
@@ -108,7 +110,14 @@ function Header() {
   };
 
   const detailsStyle = {
-    opacity: scrollY.to([scrollTopPoint / 2, scrollTopPoint], [1, 0])
+    opacity: scrollY.to([scrollTopPoint / 2, scrollTopPoint], [1, 0]),
+    pointerEvents: scrollY.to(o => {
+      return o > 100 ? "none" : null;
+    })
+  };
+
+  const navigationWrapperStyle = {
+    opacity: scrollY.to([scrollTopPoint * 0.9, scrollTopPoint], [0, 1])
   };
 
   return (
@@ -124,6 +133,11 @@ function Header() {
           $0.99 Delivery Fee
         </DetailTextView>
       </DetailsView>
+      <NavigationWrapperScrollableView>
+        <NavigationWrapperView style={navigationWrapperStyle}>
+          <NavigationMenu />
+        </NavigationWrapperView>
+      </NavigationWrapperScrollableView>
     </HeaderView>
   );
 }
@@ -147,6 +161,56 @@ function ArrowLeftIcon() {
   );
 }
 
+function NavigationMenu() {
+  const radio = useRadioState();
+  const menuNodeRef = useRef();
+
+  return (
+    <RadioGroup {...radio} aria-label="My radios" ref={menuNodeRef}>
+      <Radio {...radio} as={NavigationMenuItemView}>
+        Order Again
+      </Radio>
+      <Radio {...radio} as={NavigationMenuItemView}>
+        Picked For You
+      </Radio>
+      <Radio {...radio} as={NavigationMenuItemView}>
+        Appetizer
+      </Radio>
+      <NavigationMenuBackdrop {...radio} menuNodeRef={menuNodeRef} />
+    </RadioGroup>
+  );
+}
+
+function NavigationMenuBackdrop(props) {
+  const { currentId, menuNodeRef } = props;
+  const [style, setStyle] = useState({});
+  const nodeRef = useRef();
+
+  useEffect(() => {
+    const menuNode = menuNodeRef.current;
+    if (!menuNode) return;
+
+    const currentItemNode = menuNode.querySelector(`#${currentId}`);
+    if (!currentItemNode) return;
+
+    const { left: parentLeft } = menuNode.getBoundingClientRect();
+    const { left, width } = currentItemNode.getBoundingClientRect();
+
+    const offsetLeft = left - parentLeft;
+
+    setStyle({
+      transform: `translateX(${offsetLeft}px)`,
+      width
+    });
+  }, [currentId, menuNodeRef]);
+
+  return <NavigationMenuBackdropView ref={nodeRef} style={style} />;
+}
+
+function Body() {
+  return <BodyView />;
+}
+
 const ScreenView = styled.div`
   position: absolute;
   top: 0;
@@ -154,6 +218,7 @@ const ScreenView = styled.div`
   left: 0;
   right: 0;
   overflow-y: auto;
+  overflow-x: hidden;
 `;
 
 const CoverView = styled.div`
@@ -191,6 +256,7 @@ const BackIconWrapperView = styled(animated.div)`
   top: 0;
   padding: 16px;
   margin-bottom: -60px;
+  width: 60px;
   z-index: 10;
 `;
 
@@ -218,6 +284,20 @@ const DetailsView = styled(animated.div)`
   padding-top: 16px;
 `;
 
+const NavigationWrapperScrollableView = styled.div`
+  position: absolute;
+  bottom: 8px;
+  left: 0px;
+  padding: 0 0 8px 0;
+  margin-left: 16px;
+  overflow-y: auto;
+  z-index: 20;
+`;
+
+const NavigationWrapperView = styled(animated.div)`
+  white-space: nowrap;
+`;
+
 const DetailTextView = styled.div`
   opacity: 0.8;
   font-size: 13px;
@@ -230,6 +310,39 @@ const DetailTextView = styled.div`
 
 const BodyView = styled.div`
   height: 3000px;
+`;
+
+const NavigationMenuItemView = styled.button`
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 8px 16px;
+  color: black;
+  font-size: 14px;
+  line-height: 1;
+  outline: none;
+  cursor: pointer;
+  transition: all 100ms linear;
+  position: relative;
+  z-index: 1;
+
+  ${props => {
+    if (props.tabIndex !== 0) return "";
+    return css`
+      color: white;
+    `;
+  }}
+`;
+
+const NavigationMenuBackdropView = styled.div`
+  background: black;
+  border-radius: 99999px;
+  height: 30px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transition: all 100ms linear;
+  pointer-events: none;
 `;
 
 export default App;
