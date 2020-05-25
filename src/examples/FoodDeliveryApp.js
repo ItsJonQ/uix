@@ -116,10 +116,6 @@ function Header() {
     })
   };
 
-  const navigationWrapperStyle = {
-    opacity: scrollY.to([scrollTopPoint * 0.9, scrollTopPoint], [0, 1])
-  };
-
   return (
     <HeaderView style={headerStyle}>
       <TitleView style={titleStyle}>
@@ -133,11 +129,7 @@ function Header() {
           $0.99 Delivery Fee
         </DetailTextView>
       </DetailsView>
-      <NavigationWrapperScrollableView>
-        <NavigationWrapperView style={navigationWrapperStyle}>
-          <NavigationMenu />
-        </NavigationWrapperView>
-      </NavigationWrapperScrollableView>
+      <NavigationMenu />
     </HeaderView>
   );
 }
@@ -162,29 +154,12 @@ function ArrowLeftIcon() {
 }
 
 function NavigationMenu() {
-  const radio = useRadioState();
+  const { scrollY } = useAppContext();
+  const radio = useRadioState({ state: "order-again" });
   const menuNodeRef = useRef();
+  const [transformXStyle, setTransformXStyle] = useSpring(() => ({ x: 0 }));
 
-  return (
-    <RadioGroup {...radio} aria-label="My radios" ref={menuNodeRef}>
-      <Radio {...radio} as={NavigationMenuItemView}>
-        Order Again
-      </Radio>
-      <Radio {...radio} as={NavigationMenuItemView}>
-        Picked For You
-      </Radio>
-      <Radio {...radio} as={NavigationMenuItemView}>
-        Appetizer
-      </Radio>
-      <NavigationMenuBackdrop {...radio} menuNodeRef={menuNodeRef} />
-    </RadioGroup>
-  );
-}
-
-function NavigationMenuBackdrop(props) {
-  const { currentId, menuNodeRef } = props;
-  const [style, setStyle] = useState({});
-  const nodeRef = useRef();
+  const { currentId } = radio;
 
   useEffect(() => {
     const menuNode = menuNodeRef.current;
@@ -194,17 +169,91 @@ function NavigationMenuBackdrop(props) {
     if (!currentItemNode) return;
 
     const { left: parentLeft } = menuNode.getBoundingClientRect();
-    const { left, width } = currentItemNode.getBoundingClientRect();
+    const { left } = currentItemNode.getBoundingClientRect();
+
+    const offsetLeft = left - parentLeft;
+    setTransformXStyle({ x: offsetLeft * -1 });
+  }, [currentId, menuNodeRef, setTransformXStyle]);
+
+  const wrapperScrollableStyle = {
+    opacity: scrollY.to([100 * 0.9, 100], [0, 1])
+  };
+
+  const wrapperStyle = transformXStyle;
+
+  const itemProps = {
+    ...radio,
+    onClick: event => {
+      const id = event.target.id;
+      radio.setCurrentId(id);
+    }
+  };
+
+  const navMenuMarkup = (
+    <RadioGroup {...radio} aria-label="My radios" ref={menuNodeRef}>
+      <Radio {...itemProps} as={NavigationMenuItemView} value="order-again">
+        Order Again
+      </Radio>
+      <Radio {...itemProps} as={NavigationMenuItemView} value="picked">
+        Picked For You
+      </Radio>
+      <Radio {...itemProps} as={NavigationMenuItemView} value="appetizer">
+        Appetizer
+      </Radio>
+    </RadioGroup>
+  );
+
+  const maskedMenuMarkup = (
+    <div>
+      <NavigationMenuItemView>Order Again</NavigationMenuItemView>
+      <NavigationMenuItemView>Picked For You</NavigationMenuItemView>
+      <NavigationMenuItemView>Appetizer</NavigationMenuItemView>
+    </div>
+  );
+
+  return (
+    <NavigationWrapperScrollableView style={wrapperScrollableStyle}>
+      <NavigationWrapperView>
+        <animated.div style={wrapperStyle}>{navMenuMarkup}</animated.div>
+        <NavigationMenuBackdrop
+          maskedMenu={maskedMenuMarkup}
+          currentId={currentId}
+          menuNodeRef={menuNodeRef}
+        />
+      </NavigationWrapperView>
+    </NavigationWrapperScrollableView>
+  );
+}
+
+function NavigationMenuBackdrop(props) {
+  const { currentId, maskedMenu, menuNodeRef } = props;
+  const [maskedStyle, setMaskedStyle] = useSpring(() => ({ width: 0, x: 0 }));
+  const { width, x } = maskedStyle;
+
+  useEffect(() => {
+    const menuNode = menuNodeRef.current;
+    if (!menuNode) return;
+
+    const currentItemNode = menuNode.querySelector(`#${currentId}`);
+    if (!currentItemNode) return;
+
+    const { left: parentLeft } = menuNode.getBoundingClientRect();
+    const { left, width: nextWidth } = currentItemNode.getBoundingClientRect();
 
     const offsetLeft = left - parentLeft;
 
-    setStyle({
-      transform: `translateX(${offsetLeft}px)`,
-      width
-    });
-  }, [currentId, menuNodeRef]);
+    setMaskedStyle({ width: nextWidth, x: offsetLeft * -1 });
+  }, [currentId, menuNodeRef, setMaskedStyle]);
 
-  return <NavigationMenuBackdropView ref={nodeRef} style={style} />;
+  return (
+    <NavigationMenuMaskedWrapperView style={{ width }}>
+      <NavigationMenuMaskedInnerWrapperView
+        style={{ transform: x.interpolate(o => `translateX(${o}px)`) }}
+      >
+        {maskedMenu}
+      </NavigationMenuMaskedInnerWrapperView>
+    </NavigationMenuMaskedWrapperView>
+  );
 }
 
 function Body() {
@@ -284,7 +333,7 @@ const DetailsView = styled(animated.div)`
   padding-top: 16px;
 `;
 
-const NavigationWrapperScrollableView = styled.div`
+const NavigationWrapperScrollableView = styled(animated.div)`
   position: absolute;
   bottom: 8px;
   left: 0px;
@@ -325,23 +374,28 @@ const NavigationMenuItemView = styled.button`
   transition: all 100ms linear;
   position: relative;
   z-index: 1;
-
-  ${props => {
-    if (props.tabIndex !== 0) return "";
-    return css`
-      color: white;
-    `;
-  }}
 `;
 
-const NavigationMenuBackdropView = styled.div`
-  background: black;
-  border-radius: 99999px;
-  height: 30px;
+const NavigationMenuMaskedWrapperView = styled(animated.div)`
   position: absolute;
   top: 0;
   left: 0;
-  transition: all 100ms linear;
+  pointer-events: none;
+  height: 30px;
+  background: black;
+  border-radius: 9999px;
+  overflow: hidden;
+  z-index: 1;
+
+  button {
+    color: white !important;
+  }
+`;
+
+const NavigationMenuMaskedInnerWrapperView = styled(animated.div)`
+  position: absolute;
+  top: 0;
+  left: 0;
   pointer-events: none;
 `;
 
